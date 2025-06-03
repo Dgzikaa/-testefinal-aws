@@ -21,6 +21,9 @@ import math
 import time
 import pyotp
 
+# Importar função otimizada de remoção de duplicatas do utils
+from utils import remove_duplicates
+
 # Configurar logging ANTES de outros imports que podem usar logger
 logging.basicConfig(
     level=logging.INFO,
@@ -109,7 +112,7 @@ SECRET_2FA = "PKB7MTXCP5M3Y54C6KGTZFMXONAGOLQDUKGDN3LF5U4XAXNULP4A"
 if os.name == 'nt':  # Windows
     DOWNLOAD_PATH = os.path.join(os.getcwd(), "downloads")
 else:  # Linux/AWS
-    DOWNLOAD_PATH = "/tmp"
+    DOWNLOAD_PATH = "/home/ec2-user/Downloads"
 
 # Criar pasta de download se não existir
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
@@ -418,10 +421,12 @@ def add_to_sheet(sheet, sheet_name, data, query_type, execution_stats=None):
         # As colunas A e B já foram calculadas e inseridas corretamente nos dados formatados
         # Não é necessário chamar update_columns_a_and_b_aws novamente
         
-        # Remover duplicatas (DESABILITADO PARA SISTEMA HÍBRIDO)
+        # Remover duplicatas (REATIVADO PARA SISTEMA HÍBRIDO)
         try:
-            logger.info(f"🧹 Sistema híbrido - deduplicação desabilitada para {sheet_name}")
-            duplicates_removed = 0  # Sistema híbrido não precisa de deduplicação manual
+            logger.info(f"🧹 Iniciando remoção de duplicatas para {sheet_name}...")
+            # Usar função otimizada do utils.py que faz bulk operations
+            remove_duplicates(sheet_name)
+            duplicates_removed = 0  # A função do utils não retorna contagem, mas faz log
             
             # Atualizar estatísticas
             if execution_stats and query_type in execution_stats['modules']:
@@ -430,6 +435,7 @@ def add_to_sheet(sheet, sheet_name, data, query_type, execution_stats=None):
                 
         except Exception as e:
             logger.error(f"❌ Erro ao remover duplicatas: {e}")
+            duplicates_removed = 0
         
         # Calcular métricas de negócio dos dados processados
         try:
@@ -1013,7 +1019,8 @@ def process_data_fatporhora_aws(records):
             
             # Calcular dia da semana e número da semana
             day_of_week, week_number = calculate_week_and_day(vd_dtgerencial_iso)
-# Extrair campos diretamente do JSON
+            
+            # Extrair campos diretamente do JSON
             dds = record.get('dds', '')
             dia = record.get('dia', '')
             hora = record.get('hora', '')
@@ -1073,7 +1080,6 @@ def remove_duplicates_from_sheet(client, worksheet_name):
     logger.info(f"🧹 Sistema híbrido - deduplicação desabilitada para {worksheet_name}")
     return 0
 
-# DISABLED - OLD FUNCTION  
 def remove_duplicates_from_sheet_with_stats(client, worksheet_name):
     """
     FUNÇÃO DESABILITADA - Remove registros duplicados da planilha e retorna estatísticas.
@@ -1081,6 +1087,79 @@ def remove_duplicates_from_sheet_with_stats(client, worksheet_name):
     """
     logger.info(f"🧹 Sistema híbrido - deduplicação desabilitada para {worksheet_name}")
     return 0
+
+def remove_duplicates_from_sheet_hybrid(worksheet, query_type):
+    """Remove duplicatas da planilha usando otimização para sistema híbrido"""
+    try:
+        logger.info(f"🔍 Verificando duplicatas em {worksheet.title}...")
+        
+        # Obter todos os dados da planilha
+        all_values = worksheet.get_all_values()
+        if len(all_values) <= 1:  # Só cabeçalho ou vazio
+            logger.info("📋 Planilha vazia ou só com cabeçalho - sem duplicatas")
+            return 0
+        
+        # Identificar colunas-chave para deduplicação baseado no tipo de consulta
+        key_columns = get_deduplication_keys(query_type)
+        if not key_columns:
+            logger.info(f"⚠️ Tipo {query_type} não configurado para deduplicação")
+            return 0
+        
+        # Criar chaves únicas para cada linha (pular cabeçalho)
+        unique_rows = {}
+        header = all_values[0]
+        duplicates_found = []
+        
+        for i, row in enumerate(all_values[1:], start=2):  # Começar do índice 2 (linha 2)
+            if len(row) < max(key_columns) + 1:
+                continue  # Pular linhas incompletas
+            
+            # Criar chave única baseada nas colunas-chave
+            key_values = tuple(row[col] for col in key_columns)
+            key = "|".join(str(val) for val in key_values)
+            
+            if key in unique_rows:
+                # Duplicata encontrada
+                duplicates_found.append(i)
+                logger.debug(f"Duplicata linha {i}: {key}")
+            else:
+                unique_rows[key] = i
+        
+        if not duplicates_found:
+            logger.info("✅ Nenhuma duplicata encontrada")
+            return 0
+        
+        logger.info(f"🔍 Encontradas {len(duplicates_found)} duplicatas")
+        
+        # Remover duplicatas (de baixo para cima para não afetar índices)
+        for row_index in reversed(duplicates_found):
+            try:
+                worksheet.delete_rows(row_index)
+                logger.debug(f"Removida linha {row_index}")
+            except Exception as e:
+                logger.warning(f"Erro ao remover linha {row_index}: {e}")
+        
+        logger.info(f"✅ {len(duplicates_found)} duplicatas removidas de {worksheet.title}")
+        return len(duplicates_found)
+        
+    except Exception as e:
+        logger.error(f"❌ Erro na remoção de duplicatas: {e}")
+        return 0
+
+def get_deduplication_keys(query_type):
+    """Retorna as colunas-chave para deduplicação baseado no tipo de consulta"""
+    # Definir colunas-chave que identificam unicamente um registro para cada tipo
+    keys = {
+        "Analitico": [2, 5, 6, 13],      # vd, itm, trn, vd_dtgerencial
+        "NF": [2, 3, 4],                 # cnpj, vd_dtgerencial, nf_dtcontabil  
+        "Periodo": [2, 3, 4],            # vd, trn, dt_gerencial
+        "Tempo": [4, 5, 6, 7],           # vd, itm, t0_lancamento, t1_prodini
+        "Pagamentos": [2, 3, 4, 12],     # vd, trn, dt_gerencial, pag
+        "FatPorHora": [2, 4, 5],         # vd_dtgerencial, dds, hora
+        "VisaoCompetencia": [0, 1, 2]    # Primeiras 3 colunas (varia conforme estrutura)
+    }
+    
+    return keys.get(query_type, [])
 
 def send_discord_notification(webhook_url, execution_summary):
     """Enviar notificação para Discord com resumo da execução"""
@@ -1411,15 +1490,23 @@ def process_visao_competencia():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-plugins')
+    options.add_argument(f'--user-data-dir=/tmp/chrome-data-{os.getpid()}')
     
     # Configurar pasta de download
     prefs = {
         "download.default_directory": DOWNLOAD_PATH,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
-        "safebrowsing.enabled": True
+        "safebrowsing.enabled": True,
+        "safebrowsing.disable_download_protection": True,
+        "profile.default_content_settings.popups": 0,
+        "profile.default_content_setting_values.automatic_downloads": 1
     }
     options.add_experimental_option("prefs", prefs)
+    
+    logger.info(f"📁 Diretório de download configurado: {DOWNLOAD_PATH}")
     
     driver = None
     max_retries = 2
@@ -1801,24 +1888,79 @@ def process_visao_competencia():
             
             # Se chegou aqui, o botão foi clicado
             logger.info("⬇️ Aguardando o download do arquivo...")
-            time.sleep(20)
+            time.sleep(10)  # Reduzir de 20 para 10 segundos iniciais
             
-            # Verificar se o arquivo foi baixado em múltiplas localizações possíveis
-            possible_paths = [
-                os.path.join(DOWNLOAD_PATH, EXPORT_FILE_NAME),
-                os.path.join(os.path.expanduser("~"), "Downloads", EXPORT_FILE_NAME),
-                os.path.join(os.getcwd(), EXPORT_FILE_NAME),
-                os.path.join(os.getcwd(), "downloads", EXPORT_FILE_NAME)
-            ]
-            
-            found_file = None
-            for file_path in possible_paths:
-                if os.path.exists(file_path):
-                    found_file = file_path
-                    logger.info(f"✅ Arquivo encontrado em: {file_path}")
+            # Verificar periodicamente se o arquivo apareceu
+            for check_attempt in range(6):  # 6 tentativas x 5 segundos = 30 segundos total
+                logger.info(f"🔍 Verificação {check_attempt + 1}/6 do download...")
+                
+                # Listar todos os arquivos na pasta de download
+                try:
+                    files_in_download = os.listdir(DOWNLOAD_PATH)
+                    logger.info(f"📁 Arquivos na pasta download: {files_in_download}")
+                except Exception as e:
+                    logger.error(f"❌ Erro ao listar pasta download: {e}")
+                
+                # Verificar se o arquivo foi baixado com diferentes nomes possíveis
+                possible_filenames = [
+                    "visao_competencia.xls",
+                    "visao_competencia.xlsx", 
+                    "competencia.xls",
+                    "competencia.xlsx",
+                    "relatorio.xls",
+                    "relatorio.xlsx",
+                    "export.xls",
+                    "export.xlsx"
+                ]
+                
+                # Verificar múltiplas localizações possíveis
+                possible_paths = []
+                for filename in possible_filenames:
+                    possible_paths.extend([
+                        os.path.join(DOWNLOAD_PATH, filename),
+                        os.path.join("/tmp", filename),
+                        os.path.join(os.path.expanduser("~"), "Downloads", filename),
+                        os.path.join(os.getcwd(), filename)
+                    ])
+                
+                found_file = None
+                for file_path in possible_paths:
+                    if os.path.exists(file_path):
+                        found_file = file_path
+                        logger.info(f"✅ Arquivo encontrado em: {file_path}")
+                        break
+                
+                if found_file:
                     break
+                    
+                # Procurar também por qualquer arquivo .xls/.xlsx recém criado
+                try:
+                    for filename in os.listdir(DOWNLOAD_PATH):
+                        if filename.endswith(('.xls', '.xlsx')):
+                            file_path = os.path.join(DOWNLOAD_PATH, filename)
+                            # Verificar se foi criado nos últimos 2 minutos
+                            file_age = time.time() - os.path.getctime(file_path)
+                            if file_age < 120:  # 2 minutos
+                                found_file = file_path
+                                logger.info(f"✅ Arquivo Excel recente encontrado: {file_path}")
+                                break
+                except Exception as e:
+                    logger.debug(f"Erro ao procurar arquivos recentes: {e}")
+                
+                if found_file:
+                    break
+                    
+                time.sleep(5)  # Aguardar 5 segundos antes da próxima verificação
             
-            if found_file:
+            if not found_file:
+                logger.error("❌ Arquivo exportado não encontrado em nenhuma das localizações.")
+                logger.info(f"🔍 Localizações verificadas:")
+                for path in possible_paths:
+                    logger.info(f"  📁 {path}")
+                continue
+            else:
+                # Arquivo encontrado, processar
+                logger.info(f"✅ Arquivo encontrado: {found_file}")
                 logger.info(f"📊 Tamanho: {os.path.getsize(found_file)} bytes")
                 
                 # Tentar ler o arquivo
@@ -1850,12 +1992,6 @@ def process_visao_competencia():
                         except:
                             pass
                     continue
-            else:
-                logger.error("❌ Arquivo exportado não encontrado em nenhuma das localizações.")
-                logger.info(f"🔍 Localizações verificadas:")
-                for path in possible_paths:
-                    logger.info(f"  📁 {path}")
-                continue
                 
         except Exception as e:
             logger.error(f"❌ Erro durante tentativa {attempt + 1}: {e}")
@@ -2254,10 +2390,13 @@ def main():
 
     # Resumo final
     execution_time = datetime.now() - start_time
-    success_rate = (total_success / len(consultas_ativas)) * 100 if consultas_ativas else 0
+    
+    # Calcular total de módulos corretamente
+    total_modules_processed = len([c for c in consultas_ativas]) + (1 if visao_competencia_config['enabled'] else 0)
+    success_rate = (total_success / total_modules_processed) * 100 if total_modules_processed > 0 else 0
     
     logger.info(f"\n📈 RESUMO FINAL:")
-    logger.info(f"✅ Consultas bem-sucedidas: {total_success}/{len(consultas_ativas)}")
+    logger.info(f"✅ Consultas bem-sucedidas: {total_success}/{total_modules_processed}")
     logger.info(f"📊 Total de registros processados: {total_records}")
     logger.info(f"📈 Taxa de sucesso: {success_rate:.1f}%")
     logger.info(f"⏱️  Tempo total de execução: {execution_time}")
@@ -2405,15 +2544,16 @@ def calculate_business_metrics(data, query_type, date_filter=None):
                 if len(record) >= 18:  # Verificar se tem todas as colunas
                     valor_autorizado = parse_monetary_for_calc(record[12])  # M = valor_autorizado
                     valor_cancelado = parse_monetary_for_calc(record[17])   # R = valor_cancelado
-                    autorizada = record[10]  # K = autorizada
-                    cancelada = record[9]    # J = cancelada
+                    autorizada = str(record[10]).lower()  # K = autorizada
+                    cancelada = str(record[9]).lower()    # J = cancelada
                     
                     total_autorizado += valor_autorizado
                     total_cancelado += valor_cancelado
                     
-                    if str(autorizada).lower() in ['true', '1', 'sim', 's']:
+                    # Melhorar lógica de contagem
+                    if autorizada in ['true', '1', 'sim', 's', 'autorizada'] or valor_autorizado > 0:
                         nfs_autorizadas += 1
-                    if str(cancelada).lower() in ['true', '1', 'sim', 's']:
+                    if cancelada in ['true', '1', 'sim', 's', 'cancelada'] or valor_cancelado > 0:
                         nfs_canceladas += 1
             
             metrics = {
@@ -2465,10 +2605,12 @@ def calculate_business_metrics(data, query_type, date_filter=None):
             mesas_atendidas = set()
             
             for record in data:
-                if len(record) >= 24:  # Verificar se tem todas as colunas
-                    vr_pagamentos = parse_monetary_for_calc(record[11])  # L = vr_pagamentos (índice 11)
-                    pessoas = int(record[9]) if str(record[9]).isdigit() else 0  # J = pessoas (índice 9)
-                    qtd_itens = int(record[10]) if str(record[10]).isdigit() else 0  # K = qtd_itens (índice 10)
+                if len(record) >= 31:  # Verificar se tem todas as colunas (AE = 31 colunas)
+                    # Corrigir índices baseado na estrutura real do process_data_periodo_aws:
+                    # S = vr_pagamentos (índice 18), Q = pessoas (índice 16), R = qtd_itens (índice 17), C = vd (índice 2)
+                    vr_pagamentos = parse_monetary_for_calc(record[18])  # S = vr_pagamentos (índice 18)
+                    pessoas = int(record[16]) if str(record[16]).isdigit() else 0  # Q = pessoas (índice 16)
+                    qtd_itens = int(record[17]) if str(record[17]).isdigit() else 0  # R = qtd_itens (índice 17)
                     vd = record[2]  # C = vd (número da mesa/comanda)
                     
                     total_faturamento += vr_pagamentos
