@@ -421,16 +421,16 @@ def add_to_sheet(sheet, sheet_name, data, query_type, execution_stats=None):
         # As colunas A e B já foram calculadas e inseridas corretamente nos dados formatados
         # Não é necessário chamar update_columns_a_and_b_aws novamente
         
-        # Remover duplicatas (REATIVADO PARA SISTEMA HÍBRIDO)
+        # Remover duplicatas (usando função correta do utils)
         try:
             logger.info(f"🧹 Iniciando remoção de duplicatas para {sheet_name}...")
-            # Usar função específica para planilhas híbridas
-            duplicates_removed = remove_duplicates_from_sheet_hybrid(worksheet, query_type)
+            # Usar função correta do utils.py
+            duplicates_removed = remove_duplicates(sheet_name)
             
             # Atualizar estatísticas
             if execution_stats and query_type in execution_stats['modules']:
-                execution_stats['modules'][query_type]['duplicates_removed'] = duplicates_removed
-                execution_stats['total_duplicates_removed'] += duplicates_removed
+                execution_stats['modules'][query_type]['duplicates_removed'] = duplicates_removed or 0
+                execution_stats['total_duplicates_removed'] += duplicates_removed or 0
                 
         except Exception as e:
             logger.error(f"❌ Erro ao remover duplicatas: {e}")
@@ -1069,96 +1069,6 @@ def update_columns_a_and_b_aws(sheet_name, date_column_index, start_row, end_row
         
     except Exception as e:
         logger.error(f"❌ Erro ao atualizar colunas A e B: {e}")
-
-# DISABLED - OLD FUNCTION
-def remove_duplicates_from_sheet(client, worksheet_name):
-    """
-    FUNÇÃO DESABILITADA - Remove registros duplicados da planilha.
-    Não utilizada no sistema híbrido.
-    """
-    logger.info(f"🧹 Sistema híbrido - deduplicação desabilitada para {worksheet_name}")
-    return 0
-
-def remove_duplicates_from_sheet_with_stats(client, worksheet_name):
-    """
-    FUNÇÃO DESABILITADA - Remove registros duplicados da planilha e retorna estatísticas.
-    Não utilizada no sistema híbrido.
-    """
-    logger.info(f"🧹 Sistema híbrido - deduplicação desabilitada para {worksheet_name}")
-    return 0
-
-def remove_duplicates_from_sheet_hybrid(worksheet, query_type):
-    """Remove duplicatas da planilha usando otimização para sistema híbrido"""
-    try:
-        logger.info(f"🔍 Verificando duplicatas em {worksheet.title}...")
-        
-        # Obter todos os dados da planilha
-        all_values = worksheet.get_all_values()
-        if len(all_values) <= 1:  # Só cabeçalho ou vazio
-            logger.info("📋 Planilha vazia ou só com cabeçalho - sem duplicatas")
-            return 0
-        
-        # Identificar colunas-chave para deduplicação baseado no tipo de consulta
-        key_columns = get_deduplication_keys(query_type)
-        if not key_columns:
-            logger.info(f"⚠️ Tipo {query_type} não configurado para deduplicação")
-            return 0
-        
-        # Criar chaves únicas para cada linha (pular cabeçalho)
-        unique_rows = {}
-        header = all_values[0]
-        duplicates_found = []
-        
-        for i, row in enumerate(all_values[1:], start=2):  # Começar do índice 2 (linha 2)
-            if len(row) < max(key_columns) + 1:
-                continue  # Pular linhas incompletas
-            
-            # Criar chave única baseada nas colunas-chave
-            key_values = tuple(row[col] for col in key_columns)
-            key = "|".join(str(val) for val in key_values)
-            
-            if key in unique_rows:
-                # Duplicata encontrada
-                duplicates_found.append(i)
-                logger.debug(f"Duplicata linha {i}: {key}")
-            else:
-                unique_rows[key] = i
-        
-        if not duplicates_found:
-            logger.info("✅ Nenhuma duplicata encontrada")
-            return 0
-        
-        logger.info(f"🔍 Encontradas {len(duplicates_found)} duplicatas")
-        
-        # Remover duplicatas (de baixo para cima para não afetar índices)
-        for row_index in reversed(duplicates_found):
-            try:
-                worksheet.delete_rows(row_index)
-                logger.debug(f"Removida linha {row_index}")
-            except Exception as e:
-                logger.warning(f"Erro ao remover linha {row_index}: {e}")
-        
-        logger.info(f"✅ {len(duplicates_found)} duplicatas removidas de {worksheet.title}")
-        return len(duplicates_found)
-        
-    except Exception as e:
-        logger.error(f"❌ Erro na remoção de duplicatas: {e}")
-        return 0
-
-def get_deduplication_keys(query_type):
-    """Retorna as colunas-chave para deduplicação baseado no tipo de consulta"""
-    # Definir colunas-chave que identificam unicamente um registro para cada tipo
-    keys = {
-        "Analitico": [2, 5, 6, 13],      # vd, itm, trn, vd_dtgerencial
-        "NF": [2, 3, 4],                 # cnpj, vd_dtgerencial, nf_dtcontabil  
-        "Periodo": [2, 3, 4],            # vd, trn, dt_gerencial
-        "Tempo": [4, 5, 6, 7],           # vd, itm, t0_lancamento, t1_prodini
-        "Pagamentos": [2, 3, 4, 12],     # vd, trn, dt_gerencial, pag
-        "FatPorHora": [2, 4, 5],         # vd_dtgerencial, dds, hora
-        "VisaoCompetencia": [0, 1, 2]    # Primeiras 3 colunas (varia conforme estrutura)
-    }
-    
-    return keys.get(query_type, [])
 
 def send_discord_notification(webhook_url, execution_summary):
     """Enviar notificação para Discord com resumo da execução"""

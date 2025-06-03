@@ -25,7 +25,7 @@ CONTAHUB_EMAIL = "digao@3768"
 CONTAHUB_SENHA = "Geladeira@001"  # Senha pura
 
 # Credenciais Google Sheets
-GOOGLE_CREDENTIALS_PATH = r"F:\credentials_deboche_ordinario.json"
+GOOGLE_CREDENTIALS_PATH = "/home/ec2-user/google_credentials.json"
 SHEET_NAME = "Base_de_dados_CA_ordinario"
 
 # URL de login ContaHub
@@ -477,11 +477,19 @@ def append_to_google_sheets(worksheet_name, data, start_column="A"):
 
 def remove_duplicates(worksheet_name):
     """
-    Remove registros duplicados da planilha, preservando o cabeçalho.
-    Garante que não haja aspas simples no início dos valores.
-    Aplica formatação apropriada para datas e valores monetários.
+    Remove registros duplicados da planilha híbrida correspondente.
+    Mapeia automaticamente a worksheet para a planilha híbrida correta.
     """
-    print(f"[INFO] Removendo duplicatas da planilha {worksheet_name}...")
+    print(f"[INFO] Removendo duplicatas da aba {worksheet_name} (sistema híbrido)...")
+    
+    # Verificar se a worksheet está mapeada para uma planilha híbrida
+    if worksheet_name not in WORKSHEET_TO_SHEET:
+        print(f"[ERRO] Aba {worksheet_name} não está mapeada para planilha híbrida!")
+        print(f"[INFO] Abas mapeadas: {list(WORKSHEET_TO_SHEET.keys())}")
+        return 0
+    
+    sheet_id = WORKSHEET_TO_SHEET[worksheet_name]
+    print(f"[INFO] Usando planilha híbrida: {sheet_id}")
     
     # Conectar ao Google Sheets
     scope = [
@@ -491,15 +499,28 @@ def remove_duplicates(worksheet_name):
     creds = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_PATH, scopes=scope)
     gc = gspread.authorize(creds)
 
-    sh = gc.open(SHEET_NAME)
-    wks = sh.worksheet(worksheet_name)
+    # Abrir a planilha híbrida correta
+    try:
+        sh = gc.open_by_key(sheet_id)
+        print(f"[INFO] Planilha híbrida aberta: {sh.title}")
+    except Exception as e:
+        print(f"[ERRO] Falha ao abrir planilha híbrida {sheet_id}: {e}")
+        return 0
+    
+    # Abrir a aba específica
+    try:
+        wks = sh.worksheet(worksheet_name)
+        print(f"[INFO] Aba encontrada: {worksheet_name}")
+    except Exception as e:
+        print(f"[ERRO] Aba {worksheet_name} não encontrada na planilha híbrida: {e}")
+        return 0
     
     # Obter todos os dados, incluindo o cabeçalho
     data = wks.get_all_values()
     
     if not data or len(data) <= 1:
         print("[INFO] Planilha vazia ou apenas com cabeçalho. Nada a fazer.")
-        return
+        return 0
     
     # Separar cabeçalho e dados
     header = data[0]
@@ -523,6 +544,12 @@ def remove_duplicates(worksheet_name):
     elif worksheet_name == "CH_Pagamentos":
         date_indices = [4, 5, 9]  # E, F, J (dt_gerencial, dt_contabil, pgtdataincl)
         monetary_indices = [13]  # N (valor)
+    elif worksheet_name == "CH_FatporHora":
+        date_indices = [2]  # C (vd_dtgerencial)
+        monetary_indices = [7]  # H (valor)
+    elif worksheet_name == "CA_VisaoCompetencia":
+        date_indices = []  # Configurar conforme necessário
+        monetary_indices = []  # Configurar conforme necessário
     else:
         date_indices = []
         monetary_indices = []
@@ -540,7 +567,6 @@ def remove_duplicates(worksheet_name):
     def format_date(value):
         """
         Limpa e formata uma string de data para ser reconhecida pelo Google Sheets.
-        Apenas remove aspas e formata corretamente, sem transformar em fórmula.
         """
         if not isinstance(value, str):
             return value
@@ -559,9 +585,7 @@ def remove_duplicates(worksheet_name):
                 
             # Verificar se é uma data válida
             try:
-                # Apenas validar que é uma data válida
                 datetime.datetime.strptime(value, '%Y-%m-%d')
-                # Retornar a data limpa no formato YYYY-MM-DD
                 return value
             except:
                 pass
@@ -641,7 +665,6 @@ def remove_duplicates(worksheet_name):
                             pass
                 
                 # Normalizar valores vazios e zeros para comparação
-                # Tratar valores vazios e "0" como equivalentes
                 if value == "" or value == "0" or value == "0.0":
                     if idx in monetary_indices:  # Se for coluna monetária, normalizar como vazio
                         value = ""
@@ -656,19 +679,20 @@ def remove_duplicates(worksheet_name):
     # Obter lista de registros únicos
     unique_data = list(unique_rows.values())
     
+    duplicates_removed = len(rows) - len(unique_data)
     print(f"[INFO] Registros após deduplicação: {len(unique_data)}")
-    print(f"[INFO] Duplicatas removidas: {len(rows) - len(unique_data)}")
+    print(f"[INFO] Duplicatas removidas: {duplicates_removed}")
     
     # Se não há duplicatas, não é necessário atualizar a planilha
-    if len(unique_data) == len(rows):
+    if duplicates_removed == 0:
         print("[INFO] Não foram encontradas duplicatas. Nenhuma alteração necessária.")
-        return
+        return 0
     
     # Limpar planilha mantendo apenas o cabeçalho
     try:
         print("[INFO] Limpando planilha e preparando para inserir dados deduplcados...")
         
-        # Método 1: Limpar o conteúdo da planilha e adicionar header + dados únicos
+        # Limpar o conteúdo da planilha e adicionar header + dados únicos
         wks.clear() 
         time.sleep(2)
         
@@ -678,36 +702,14 @@ def remove_duplicates(worksheet_name):
         
         # Depois inserir os dados únicos
         if unique_data:
-            wks.update('A2', unique_data, value_input_option='USER_ENTERED')  # Usar USER_ENTERED para interpretar fórmulas
-        
-        print("[INFO] Duplicatas removidas com sucesso!")
+            wks.update('A2', unique_data, value_input_option='USER_ENTERED')
+            
+        print(f"[INFO] ✅ Deduplicação concluída: {duplicates_removed} duplicatas removidas!")
+        return duplicates_removed
         
     except Exception as e:
-        print(f"[ERRO] Falha ao atualizar planilha após remoção de duplicatas: {str(e)}")
-        
-        try:
-            # Método alternativo em caso de falha
-            print("[INFO] Tentando método alternativo...")
-            
-            # Limpar completamente e inserir header
-            wks.clear()
-            wks.update('A1', [header])
-            
-            # Inserir dados em lotes para evitar sobrecarga
-            batch_size = 1000
-            for i in range(0, len(unique_data), batch_size):
-                batch = unique_data[i:i+batch_size]
-                if batch:
-                    range_str = f'A{i+2}'  # +2 porque a linha 1 é o header
-                    wks.update(range_str, batch, value_input_option='USER_ENTERED')  # Usar USER_ENTERED para interpretar fórmulas
-                    print(f"[INFO] Inserido lote de {len(batch)} registros")
-                    time.sleep(2)
-            
-            print("[INFO] Duplicatas removidas com sucesso (método alternativo)!")
-            
-        except Exception as e2:
-            print(f"[ERRO] Falha no método alternativo: {str(e2)}")
-            return
+        print(f"[ERRO] Falha ao atualizar planilha: {e}")
+        return 0
 
 def log_info(message):
     """Registra mensagens de informação."""
@@ -1238,3 +1240,28 @@ SCRIPT_CONFIGS = {
         """
     }
 } 
+
+# PLANILHAS HÍBRIDAS - NOVA CONFIGURAÇÃO
+HYBRID_SHEETS = {
+    "vendas": {
+        "id": "1eI11IWdwUce_2P27eKoltMT19D4Dvgv6wb7T8HNv6DY",
+        "name": "Vendas_ordinario",
+        "modules": ["CH_AnaliticoPP", "CH_Pagamentos", "CH_FatporHora"]
+    },
+    "fiscal": {
+        "id": "1Dk4mOHfx5FsxTVhsqnYF-todecmUVvbOqaF69s14YTY", 
+        "name": "Fiscal_ordinario",
+        "modules": ["CH_NFs", "CH_PeriodoPP"]
+    },
+    "operacional": {
+        "id": "1FZPQtQXN_To5qgJVHYu7o55A0TXRf8hj7UABUTsMrTY",
+        "name": "Operacional_ordinario", 
+        "modules": ["CH_Tempo", "CA_VisaoCompetencia"]
+    }
+}
+
+# Mapeamento de módulos para planilhas híbridas
+WORKSHEET_TO_SHEET = {}
+for sheet_key, sheet_info in HYBRID_SHEETS.items():
+    for module in sheet_info["modules"]:
+        WORKSHEET_TO_SHEET[module] = sheet_info["id"] 
