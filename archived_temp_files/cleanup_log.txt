@@ -1,0 +1,29 @@
+LIMPEZA DO PROJETO TESTEFINAL
+Data: 02/06/2025 13:02:35
+Arquivos arquivados: 24
+Espaço organizado: 102.0KB
+
+Arquivos arquivados:
+- check_aws_version.py
+- upload_hybrid_script.py
+- executar_lote_5dias.py
+- upload_main_file.py
+- archive_data_safely.py
+- create_separate_spreadsheets.py
+- fix_dependencies_and_create_hybrid.py
+- fix_business_metrics.py
+- create_hybrid_spreadsheets.py
+- upload_and_setup_new_instance.py
+- clean_spreadsheet.py
+- finish_setup.py
+- fix_discord_test.py
+- debug_erros.py
+- update_discord_commands.py
+- fix_upload_aws.py
+- chunked_upload.py
+- upload_hybrid_version.py
+- investigate_data_structure.py
+- simple_fix.py
+- check_cron.py
+- update_discord_bot.py
+- create_hybrid_simple.py
