@@ -424,9 +424,8 @@ def add_to_sheet(sheet, sheet_name, data, query_type, execution_stats=None):
         # Remover duplicatas (REATIVADO PARA SISTEMA HÍBRIDO)
         try:
             logger.info(f"🧹 Iniciando remoção de duplicatas para {sheet_name}...")
-            # Usar função otimizada do utils.py que faz bulk operations
-            remove_duplicates(sheet_name)
-            duplicates_removed = 0  # A função do utils não retorna contagem, mas faz log
+            # Usar função específica para planilhas híbridas
+            duplicates_removed = remove_duplicates_from_sheet_hybrid(worksheet, query_type)
             
             # Atualizar estatísticas
             if execution_stats and query_type in execution_stats['modules']:
