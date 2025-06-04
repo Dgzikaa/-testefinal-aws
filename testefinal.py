@@ -22,7 +22,7 @@ import time
 import pyotp
 
 # Importar função otimizada de remoção de duplicatas do utils
-from utils import remove_duplicates
+from utils import remove_duplicates, configure_utils_for_bar
 
 # Configurar logging ANTES de outros imports que podem usar logger
 logging.basicConfig(
@@ -75,37 +75,156 @@ logger = logging.getLogger(__name__)
 
 # Configurações
 CONTAHUB_LOGIN_URL = "https://sp.contahub.com/rest/contahub.cmds.UsuarioCmd/login/17421701611337?emp=0"
-CONTAHUB_EMAIL = "digao@3768"
-CONTAHUB_SENHA = "Geladeira@001"
 
-# PLANILHAS HÍBRIDAS - NOVA CONFIGURAÇÃO
-HYBRID_SHEETS = {
-    "vendas": {
-        "id": "1eI11IWdwUce_2P27eKoltMT19D4Dvgv6wb7T8HNv6DY",
-        "name": "Vendas_ordinario",
-        "modules": ["Analitico", "Pagamentos", "FatPorHora"]
+# CONFIGURAÇÕES POR BAR - SISTEMA MULTI-BAR
+BAR_CONFIGS = {
+    "ordinario": {
+        "contahub_email": "digao@3768",
+        "contahub_senha": "Geladeira@001",
+        "conta_azul_email": "rodrigo@grupomenosemais.com.br",
+        "conta_azul_senha": "Ca12345@",
+        "emp_id": "3768",  # ID da empresa no ContaHub
+        "hybrid_sheets": {
+            "vendas": {
+                "id": "1eI11IWdwUce_2P27eKoltMT19D4Dvgv6wb7T8HNv6DY",
+                "name": "Vendas_ordinario",
+                "modules": ["Analitico", "Pagamentos", "FatPorHora"]
+            },
+            "fiscal": {
+                "id": "1Dk4mOHfx5FsxTVhsqnYF-todecmUVvbOqaF69s14YTY", 
+                "name": "Fiscal_ordinario",
+                "modules": ["NF", "Periodo"]
+            },
+            "operacional": {
+                "id": "1FZPQtQXN_To5qgJVHYu7o55A0TXRf8hj7UABUTsMrTY",
+                "name": "Operacional_ordinario",
+                "modules": ["Tempo", "VisaoCompetencia"]
+            }
+        },
+        "consultas_contahub": [
+            {
+                'nome': 'Analitico',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742237860621',
+                'qry': 77,
+                'params': '&produto=&grupo=&local=&turno=&mesa=',
+                'worksheet': 'CH_AnaliticoPP'
+            },
+            {
+                'nome': 'NF',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742268006590',
+                'qry': 73,
+                'params': '',
+                'worksheet': 'CH_NFs'
+            },
+            {
+                'nome': 'Periodo',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1748545563327',
+                'qry': 5,
+                'params': '',
+                'worksheet': 'CH_PeriodoPP'
+            },
+            {
+                'nome': 'Tempo',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742603193885',
+                'qry': 81,
+                'params': '&prod=&grupo=&local=',
+                'worksheet': 'CH_Tempo'
+            },
+            {
+                'nome': 'Pagamentos',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742602462905',
+                'qry': 7,
+                'params': '&meio=',
+                'worksheet': 'CH_Pagamentos'
+            },
+            {
+                'nome': 'FatPorHora',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742694156165',
+                'qry': 101,
+                'params': '',
+                'worksheet': 'CH_FatporHora'
+            }
+        ]
     },
-    "fiscal": {
-        "id": "1Dk4mOHfx5FsxTVhsqnYF-todecmUVvbOqaF69s14YTY", 
-        "name": "Fiscal_ordinario",
-        "modules": ["NF", "Periodo"]
-    },
-    "operacional": {
-        "id": "1FZPQtQXN_To5qgJVHYu7o55A0TXRf8hj7UABUTsMrTY",
-        "name": "Operacional_ordinario", 
-        "modules": ["Tempo", "VisaoCompetencia"]
+    "deboche": {
+        "contahub_email": "deboche@debochebar.com",
+        "contahub_senha": "D3b0ch3!",
+        "conta_azul_email": "rodrigo@grupomenosemais.com.br",  # Assumindo o mesmo
+        "conta_azul_senha": "Ca12345@",  # Assumindo o mesmo
+        "emp_id": "3691",  # ID da empresa no ContaHub (Deboche)
+        "hybrid_sheets": {
+            "vendas": {
+                "id": "1L6Ns6pHELtYceSEkmUT-yHunkniR8lDMvdmPS-6Em0E",
+                "name": "Vendas_deboche",
+                "modules": ["Analitico", "Pagamentos", "FatPorHora"]
+            },
+            "fiscal": {
+                "id": "1l2t5fqOyc0qlJ42sjS_Kf3NXuAbmlUyKHdJy7gA2fJY",
+                "name": "Fiscal_deboche", 
+                "modules": ["NF", "Periodo"]
+            },
+            "operacional": {
+                "id": "1QiBT3lZO-riGldwDdbIWHl9VhZG48_pwvcu5zrRsDDE",
+                "name": "Operacional_deboche",
+                "modules": ["Tempo", "VisaoCompetencia"]
+            }
+        },
+        "consultas_contahub": [
+            {
+                'nome': 'Analitico',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742237860621',  # Pode ser a mesma
+                'qry': 77,
+                'params': '&produto=&grupo=&local=&turno=&mesa=',
+                'worksheet': 'CH_AnaliticoPP'
+            },
+            {
+                'nome': 'NF',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742268006590',  # Pode ser a mesma
+                'qry': 73,
+                'params': '',
+                'worksheet': 'CH_NFs'
+            },
+            {
+                'nome': 'Periodo',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1749002507279',  # ← URL ESPECÍFICA DO DEBOCHE
+                'qry': 5,
+                'params': '',
+                'worksheet': 'CH_PeriodoPP'
+            },
+            {
+                'nome': 'Tempo',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742603193885',  # Pode ser a mesma
+                'qry': 81,
+                'params': '&prod=&grupo=&local=',
+                'worksheet': 'CH_Tempo'
+            },
+            {
+                'nome': 'Pagamentos',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742602462905',  # Pode ser a mesma
+                'qry': 7,
+                'params': '&meio=',
+                'worksheet': 'CH_Pagamentos'
+            },
+            {
+                'nome': 'FatPorHora',
+                'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742694156165',  # Pode ser a mesma
+                'qry': 101,
+                'params': '',
+                'worksheet': 'CH_FatporHora'
+            }
+        ]
     }
 }
 
-# Mapeamento de módulos para planilhas
+# Variáveis globais que serão definidas dinamicamente
+CONTAHUB_EMAIL = ""
+CONTAHUB_SENHA = ""
+CONTA_AZUL_EMAIL = ""
+CONTA_AZUL_SENHA = ""
+HYBRID_SHEETS = {}
 MODULE_TO_SHEET = {}
-for sheet_key, sheet_info in HYBRID_SHEETS.items():
-    for module in sheet_info["modules"]:
-        MODULE_TO_SHEET[module] = sheet_key
 
-# Configurações de Visão de Competência
-CONTA_AZUL_EMAIL = "rodrigo@grupomenosemais.com.br"
-CONTA_AZUL_SENHA = "Ca12345@"
+# Configurações de Visão de Competência (constantes)
 SECRET_2FA = "PKB7MTXCP5M3Y54C6KGTZFMXONAGOLQDUKGDN3LF5U4XAXNULP4A"
 
 # Download paths - diferentes para Windows e AWS
@@ -287,7 +406,7 @@ def fetch_data_contahub(session, consulta_config, start_date, end_date):
         logger.info(f"📡 Buscando dados: {nome} ({start_date} - {end_date})")
         
         # Construir URL completa
-        query_url = f"{base_url}?qry={qry}&d0={start_date}&d1={end_date}&emp=3768&nfe=1{params}"
+        query_url = f"{base_url}?qry={qry}&d0={start_date}&d1={end_date}&emp={EMP_ID}&nfe=1{params}"
         
         logger.info(f"🔗 URL: {query_url}")
         
@@ -1964,11 +2083,55 @@ def monitor_hybrid_spreadsheet_usage_NEW(client):
         logger.error(f"❌ Erro monitoramento: {e}")
         return {"total_cells": 0, "usage_percent": 0.0, "limit": 10000000, "status": "Erro"}
 
+def configure_bar(bar_name):
+    """Configurar as variáveis globais baseado no bar selecionado"""
+    global CONTAHUB_EMAIL, CONTAHUB_SENHA, CONTA_AZUL_EMAIL, CONTA_AZUL_SENHA
+    global HYBRID_SHEETS, MODULE_TO_SHEET, CONSULTAS_CONTAHUB, EMP_ID
+    
+    if bar_name not in BAR_CONFIGS:
+        available_bars = ", ".join(BAR_CONFIGS.keys())
+        raise ValueError(f"Bar '{bar_name}' não encontrado. Bares disponíveis: {available_bars}")
+    
+    config = BAR_CONFIGS[bar_name]
+    
+    # Configurar variáveis do ContaHub
+    CONTAHUB_EMAIL = config["contahub_email"]
+    CONTAHUB_SENHA = config["contahub_senha"]
+    EMP_ID = config["emp_id"]
+    
+    # Configurar variáveis do Conta Azul
+    CONTA_AZUL_EMAIL = config["conta_azul_email"]
+    CONTA_AZUL_SENHA = config["conta_azul_senha"]
+    
+    # Configurar planilhas híbridas
+    HYBRID_SHEETS = config["hybrid_sheets"]
+    
+    # Configurar consultas ContaHub específicas do bar
+    CONSULTAS_CONTAHUB = config["consultas_contahub"]
+    
+    # Mapear módulos para planilhas
+    MODULE_TO_SHEET = {}
+    for sheet_key, sheet_info in HYBRID_SHEETS.items():
+        for module in sheet_info["modules"]:
+            MODULE_TO_SHEET[module] = sheet_info["id"]
+    
+    # Sincronizar configurações com utils.py
+    configure_utils_for_bar(bar_name)
+    
+    logger.info(f"✅ Bar '{bar_name}' configurado:")
+    logger.info(f"   📧 ContaHub: {CONTAHUB_EMAIL}")
+    logger.info(f"   🏢 EMP ID: {EMP_ID}")
+    logger.info(f"   📊 Planilhas: {len(HYBRID_SHEETS)} híbridas")
+    logger.info(f"   🔍 Consultas: {len(CONSULTAS_CONTAHUB)} configuradas")
 
 def main():
     """Função principal"""
     # Configurar argumentos da linha de comando
     parser = argparse.ArgumentParser(description='Script AWS para extrair dados do ContaHub e Conta Azul')
+    
+    # Argumento obrigatório para especificar o bar
+    parser.add_argument('--bar', type=str, required=True, choices=['ordinario', 'deboche'], 
+                        help='Bar a ser processado: ordinario ou deboche')
     
     # Argumentos para controlar quais módulos serão executados
     parser.add_argument('--only-analitico', action='store_true', help='Processar apenas dados analíticos')
@@ -1993,6 +2156,15 @@ def main():
     # Processar argumentos
     args = parser.parse_args()
     
+    # ======================================================================
+    # CONFIGURAR BAR ANTES DE QUALQUER OPERAÇÃO
+    # ======================================================================
+    try:
+        configure_bar(args.bar)
+    except ValueError as e:
+        logger.error(f"❌ Erro na configuração do bar: {e}")
+        return False
+    
     # Configurar Discord webhook
     discord_webhook = args.discord_webhook or os.environ.get('DISCORD_WEBHOOK_URL') or DISCORD_WEBHOOK_URL
     
@@ -2002,10 +2174,12 @@ def main():
         logger.info("🔍 Modo verbose ativado")
     
     start_time = datetime.now()
-    logger.info("🚀 INICIANDO TESTEFINAL AWS PRODUÇÃO - VERSÃO HÍBRIDA")
+    logger.info("🚀 INICIANDO TESTEFINAL AWS PRODUÇÃO - VERSÃO HÍBRIDA MULTI-BAR")
     logger.info("=" * 70)
+    logger.info(f"🏪 BAR: {args.bar.upper()}")
     logger.info(f"🕒 Timestamp: {start_time}")
     logger.info(f"🌍 Região AWS: {AWS_REGION}")
+    logger.info(f"📧 ContaHub: {CONTAHUB_EMAIL}")
     logger.info(f"📅 Datas fixas: {'Sim' if args.fixed_dates else 'Não'}")
     logger.info(f"🗄️  Banco de dados: {'Desabilitado' if args.no_database else 'Habilitado'}")
     logger.info(f"🤖 Modo automático: {'Sim' if args.auto else 'Não'}")
@@ -2068,57 +2242,18 @@ def main():
     else:
         logger.info("📋 Google Sheets desabilitado pelo parâmetro --no-database")
     
-    # Configurações das consultas ContaHub
-    consultas_contahub = [
-        {
-            'nome': 'Analitico',
-            'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742237860621',
-            'qry': 77,
-            'params': '&produto=&grupo=&local=&turno=&mesa=',
-            'worksheet': 'CH_AnaliticoPP',
-            'enabled': not specific_mode or args.only_analitico
-        },
-        {
-            'nome': 'NF',
-            'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742174377035',
-            'qry': 73,
-            'params': '',
-            'worksheet': 'CH_NFs',
-            'enabled': not specific_mode or args.only_nf
-        },
-        {
-            'nome': 'Periodo',
-            'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1748545563327',
-            'qry': 5,
-            'params': '',
-            'worksheet': 'CH_PeriodoPP',
-            'enabled': not specific_mode or args.only_periodo
-        },
-        {
-            'nome': 'Tempo',
-            'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742603193885',
-            'qry': 81,
-            'params': '&prod=&grupo=&local=',
-            'worksheet': 'CH_Tempo',
-            'enabled': not specific_mode or args.only_tempo
-        },
-        {
-            'nome': 'Pagamentos',
-            'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742602462905',
-            'qry': 7,
-            'params': '&meio=',
-            'worksheet': 'CH_Pagamentos',
-            'enabled': not specific_mode or args.only_pagamentos
-        },
-        {
-            'nome': 'FatPorHora',
-            'url': 'https://sp.contahub.com/rest/contahub.cmds.QueryCmd/execQuery/1742694156165',
-            'qry': 101,
-            'params': '',
-            'worksheet': 'CH_FatporHora',
-            'enabled': not specific_mode or args.only_fatporhora
+    # Configurações das consultas ContaHub (agora dinâmicas por bar)
+    consultas_contahub = []
+    for consulta_config in CONSULTAS_CONTAHUB:
+        consulta_enabled = {
+            'nome': consulta_config['nome'],
+            'url': consulta_config['url'],
+            'qry': consulta_config['qry'],
+            'params': consulta_config['params'],
+            'worksheet': consulta_config['worksheet'],
+            'enabled': not specific_mode or getattr(args, f"only_{consulta_config['nome'].lower()}", False)
         }
-    ]
+        consultas_contahub.append(consulta_enabled)
     
     # Configuração do módulo Visão de Competência
     visao_competencia_config = {

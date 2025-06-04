@@ -6,8 +6,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import os
 # import psycopg2  # Comentado - não usando banco de dados
-import pyperclip
-import pyautogui
+# import pyperclip  # Comentado para servidor (não usado)
+# import pyautogui  # Comentado para servidor (não usado)
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -1243,25 +1243,71 @@ SCRIPT_CONFIGS = {
 
 # PLANILHAS HÍBRIDAS - NOVA CONFIGURAÇÃO
 HYBRID_SHEETS = {
-    "vendas": {
+    # ORDINÁRIO
+    "vendas_ordinario": {
         "id": "1eI11IWdwUce_2P27eKoltMT19D4Dvgv6wb7T8HNv6DY",
         "name": "Vendas_ordinario",
         "modules": ["CH_AnaliticoPP", "CH_Pagamentos", "CH_FatporHora"]
     },
-    "fiscal": {
+    "fiscal_ordinario": {
         "id": "1Dk4mOHfx5FsxTVhsqnYF-todecmUVvbOqaF69s14YTY", 
         "name": "Fiscal_ordinario",
         "modules": ["CH_NFs", "CH_PeriodoPP"]
     },
-    "operacional": {
+    "operacional_ordinario": {
         "id": "1FZPQtQXN_To5qgJVHYu7o55A0TXRf8hj7UABUTsMrTY",
         "name": "Operacional_ordinario", 
+        "modules": ["CH_Tempo", "CA_VisaoCompetencia"]
+    },
+    
+    # DEBOCHE
+    "vendas_deboche": {
+        "id": "1L6Ns6pHELtYceSEkmUT-yHunkniR8lDMvdmPS-6Em0E",
+        "name": "Vendas_deboche",
+        "modules": ["CH_AnaliticoPP", "CH_Pagamentos", "CH_FatporHora"]
+    },
+    "fiscal_deboche": {
+        "id": "1l2t5fqOyc0qlJ42sjS_Kf3NXuAbmlUyKHdJy7gA2fJY",
+        "name": "Fiscal_deboche",
+        "modules": ["CH_NFs", "CH_PeriodoPP"]
+    },
+    "operacional_deboche": {
+        "id": "1QiBT3lZO-riGldwDdbIWHl9VhZG48_pwvcu5zrRsDDE",
+        "name": "Operacional_deboche", 
         "modules": ["CH_Tempo", "CA_VisaoCompetencia"]
     }
 }
 
-# Mapeamento de módulos para planilhas híbridas
+# MAPEAMENTO WORKSHEET → SHEET_ID (será atualizado dinamicamente)
 WORKSHEET_TO_SHEET = {}
 for sheet_key, sheet_info in HYBRID_SHEETS.items():
     for module in sheet_info["modules"]:
-        WORKSHEET_TO_SHEET[module] = sheet_info["id"] 
+        WORKSHEET_TO_SHEET[module] = sheet_info["id"]
+
+def configure_utils_for_bar(bar_name):
+    """Configurar utils.py para um bar específico"""
+    global WORKSHEET_TO_SHEET
+    
+    # Limpar mapeamento atual
+    WORKSHEET_TO_SHEET.clear()
+    
+    # Recriar mapeamento baseado no bar
+    bar_sheets = {
+        "ordinario": ["vendas_ordinario", "fiscal_ordinario", "operacional_ordinario"],
+        "deboche": ["vendas_deboche", "fiscal_deboche", "operacional_deboche"]
+    }
+    
+    if bar_name not in bar_sheets:
+        raise ValueError(f"Bar '{bar_name}' não suportado. Use: ordinario ou deboche")
+    
+    # Mapear apenas as planilhas do bar selecionado
+    for sheet_key in bar_sheets[bar_name]:
+        if sheet_key in HYBRID_SHEETS:
+            sheet_info = HYBRID_SHEETS[sheet_key]
+            for module in sheet_info["modules"]:
+                WORKSHEET_TO_SHEET[module] = sheet_info["id"]
+    
+    print(f"[INFO] Utils configurado para bar: {bar_name}")
+    print(f"[INFO] Mapeamentos ativos: {len(WORKSHEET_TO_SHEET)} módulos")
+    
+    return True 
